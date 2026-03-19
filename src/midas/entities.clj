@@ -67,6 +67,20 @@
    "Flex Alert"               :midas.rate-type/flex-alert})
 
 ;; ---------------------------------------------------------------------------
+;; Unit type coercion
+;; ---------------------------------------------------------------------------
+
+(def unit-type-kw
+  {"$/kWh"        :midas.unit/dollar-per-kwh
+   "$/kW"         :midas.unit/dollar-per-kw
+   "export $/kWh" :midas.unit/export-dollar-per-kwh
+   "backup $/kWh" :midas.unit/backup-dollar-per-kwh
+   "kg/kWh CO2"   :midas.unit/kg-co2-per-kwh
+   "$/kvarh"      :midas.unit/dollar-per-kvarh
+   "Event"        :midas.unit/event
+   "Level"        :midas.unit/level})
+
+;; ---------------------------------------------------------------------------
 ;; Day type coercion
 ;; ---------------------------------------------------------------------------
 
@@ -104,7 +118,7 @@
        :midas.value/time-start (parse-time (:TimeStart raw))
        :midas.value/time-end   (parse-time (:TimeEnd raw))
        :midas.value/price      (parse-bigdec (:value raw))
-       :midas.value/unit       (:Unit raw)}
+       :midas.value/unit       (get unit-type-kw (:Unit raw) (:Unit raw))}
       (with-meta {:midas/raw raw})))
 
 (defn ->rate-info
@@ -211,10 +225,27 @@
   [response]
   (mapv ->holiday (:body response)))
 
+(defn- distinct-by
+  "Returns a lazy sequence of elements with duplicates removed by (f item)."
+  [f coll]
+  (let [step (fn step [xs seen]
+               (lazy-seq
+                (loop [[x :as xs] xs seen seen]
+                  (when (seq xs)
+                    (let [k (f x)]
+                      (if (contains? seen k)
+                        (recur (rest xs) seen)
+                        (cons x (step (rest xs) (conj seen k)))))))))]
+    (step coll #{})))
+
 (defn historical-list
-  "Extract and coerce historical RIN list from a get-historical-list response."
+  "Extract and coerce historical RIN list from a get-historical-list response.
+  Deduplicates by RIN ID (the live API returns duplicates)."
   [response]
-  (mapv ->rin-list-entry (:body response)))
+  (->> (:body response)
+       (map ->rin-list-entry)
+       (distinct-by :midas.rin/id)
+       vec))
 
 (defn historical-data
   "Extract and coerce historical rate data from a get-historical-data response."
@@ -225,3 +256,30 @@
   "Extract and coerce lookup table entries from a get-lookup-table response."
   [response]
   (mapv ->lookup-entry (:body response)))
+
+;; ---------------------------------------------------------------------------
+;; Signal type helpers
+;; ---------------------------------------------------------------------------
+
+(defn ghg?
+  "True if rate-info represents a GHG (greenhouse gas emissions) signal."
+  [rate]
+  (or (= :midas.rate-type/ghg (:midas.rate/type rate))
+      (some-> rate :midas.rate/values first :midas.value/unit
+              (= :midas.unit/kg-co2-per-kwh))))
+
+(defn flex-alert?
+  "True if rate-info represents a Flex Alert signal."
+  [rate]
+  (or (= :midas.rate-type/flex-alert (:midas.rate/type rate))
+      (some-> rate :midas.rate/values first :midas.value/unit
+              (= :midas.unit/event))))
+
+(defn flex-alert-active?
+  "True if the Flex Alert rate-info indicates an active alert.
+  Active when any value interval has a non-zero value."
+  [rate]
+  (and (flex-alert? rate)
+       (some #(and (:midas.value/price %)
+                   (pos? (.doubleValue (:midas.value/price %))))
+             (:midas.rate/values rate))))

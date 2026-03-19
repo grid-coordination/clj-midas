@@ -75,7 +75,7 @@
       (is (= (LocalDate/parse "2023-05-01") (:midas.value/date-start v)))
       (is (= (LocalTime/parse "07:00:00") (:midas.value/time-start v)))
       (is (= :midas.day/monday (:midas.value/day-start v)))
-      (is (= "$/kWh" (:midas.value/unit v))))
+      (is (= :midas.unit/dollar-per-kwh (:midas.value/unit v))))
     (testing "price is BigDecimal"
       (is (instance? BigDecimal (:midas.value/price v))))
     (testing "raw metadata preserved"
@@ -187,3 +187,71 @@
   (testing "holiday datetime → LocalDate extraction"
     (let [h (entities/->holiday sample-holiday)]
       (is (instance? LocalDate (:midas.holiday/date h))))))
+
+;; ---------------------------------------------------------------------------
+;; Unit type coercion
+;; ---------------------------------------------------------------------------
+
+(deftest unit-type-coercion
+  (testing "known units coerce to keywords"
+    (is (= :midas.unit/dollar-per-kwh
+           (:midas.value/unit (entities/->value-data (assoc sample-value-data :Unit "$/kWh")))))
+    (is (= :midas.unit/kg-co2-per-kwh
+           (:midas.value/unit (entities/->value-data (assoc sample-value-data :Unit "kg/kWh CO2")))))
+    (is (= :midas.unit/event
+           (:midas.value/unit (entities/->value-data (assoc sample-value-data :Unit "Event"))))))
+  (testing "unknown units pass through as strings"
+    (is (= "NewUnit"
+           (:midas.value/unit (entities/->value-data (assoc sample-value-data :Unit "NewUnit")))))))
+
+;; ---------------------------------------------------------------------------
+;; Signal type helpers
+;; ---------------------------------------------------------------------------
+
+(def sample-flex-alert-rate
+  {:RateID "USCA-FLEX-FXRT-0000"
+   :RateName "Realtime Flex Alert Status"
+   :RateType nil
+   :ValueInformation [{:ValueName "No Active Flex Alert"
+                       :DateStart "2026-03-19" :DateEnd "2026-03-19"
+                       :DayStart "Thursday" :DayEnd "Thursday"
+                       :TimeStart "03:11" :TimeEnd "03:11"
+                       :value 0.0 :Unit "Event"}]})
+
+(def sample-ghg-rate
+  {:RateID "USCA-GHGH-SGHT-0000"
+   :RateName "GHG Signal"
+   :RateType "Greenhouse Gas emissions"
+   :ValueInformation [{:ValueName "hour1"
+                       :DateStart "2023-01-01" :DateEnd "2023-01-01"
+                       :DayStart "Sunday" :DayEnd "Sunday"
+                       :TimeStart "00:00:00" :TimeEnd "00:59:59"
+                       :value 0.215 :Unit "kg/kWh CO2"}]})
+
+(deftest signal-type-helpers
+  (testing "flex-alert? detection"
+    (is (entities/flex-alert? (entities/->rate-info sample-flex-alert-rate)))
+    (is (not (entities/flex-alert? (entities/->rate-info sample-rate-info)))))
+  (testing "ghg? detection"
+    (is (entities/ghg? (entities/->rate-info sample-ghg-rate)))
+    (is (not (entities/ghg? (entities/->rate-info sample-rate-info)))))
+  (testing "flex-alert-active? with inactive alert"
+    (is (not (entities/flex-alert-active? (entities/->rate-info sample-flex-alert-rate)))))
+  (testing "flex-alert-active? with active alert"
+    (let [active (assoc-in sample-flex-alert-rate [:ValueInformation 0 :value] 1.0)]
+      (is (entities/flex-alert-active? (entities/->rate-info active))))))
+
+;; ---------------------------------------------------------------------------
+;; Historical list deduplication
+;; ---------------------------------------------------------------------------
+
+(deftest historical-list-dedup
+  (testing "duplicate RINs are removed"
+    (let [duped-body [{:RateID "USCA-TSTS-TTOU-TEST" :SignalType "Rates" :Description "d1"}
+                      {:RateID "USCA-TSTS-TTOU-TEST" :SignalType "Rates" :Description "d1"}
+                      {:RateID "USCA-TSTS-MINR-TEST" :SignalType "Rates" :Description "d2"}
+                      {:RateID "USCA-TSTS-MINR-TEST" :SignalType "Rates" :Description "d2"}]
+          result (entities/historical-list {:status 200 :body duped-body})]
+      (is (= 2 (count result)))
+      (is (= #{"USCA-TSTS-TTOU-TEST" "USCA-TSTS-MINR-TEST"}
+             (set (map :midas.rin/id result)))))))

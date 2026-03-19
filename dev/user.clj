@@ -15,19 +15,23 @@
       (throw (ex-info "MIDAS_USERNAME and MIDAS_PASSWORD env vars required" {})))
     (client/get-token username password)))
 
+(defn- midas-credentials
+  "Read MIDAS credentials from environment variables."
+  []
+  (let [username (System/getenv "MIDAS_USERNAME")
+        password (System/getenv "MIDAS_PASSWORD")]
+    (when-not (and username password)
+      (throw (ex-info "MIDAS_USERNAME and MIDAS_PASSWORD env vars required" {})))
+    [username password]))
+
 (defn start!
-  "Initialize a MIDAS client for REPL use.
-  Acquires a token and creates the client."
+  "Initialize a MIDAS auto-refreshing client for REPL use.
+  Token refreshes automatically — no need to call refresh!."
   ([] (start! {}))
   ([opts]
-   (let [token-info (get-token!)]
-     (reset! midas-client (client/create-client token-info opts))
+   (let [[username password] (midas-credentials)]
+     (reset! midas-client (client/create-auto-client username password opts))
      :started)))
-
-(defn refresh!
-  "Re-acquire token and recreate client. Call when token expires."
-  ([] (refresh! {}))
-  ([opts] (start! opts)))
 
 (comment
   ;; Start the client (requires MIDAS_USERNAME/MIDAS_PASSWORD env vars)

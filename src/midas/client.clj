@@ -23,6 +23,21 @@
 (def api-url "https://midasapi.energy.ca.gov/api")
 (def default-spec-path "midas-spec/openapi.yaml")
 
+(declare get-token)
+
+;; ---------------------------------------------------------------------------
+;; Token expiry
+;; ---------------------------------------------------------------------------
+
+(defn token-expired?
+  "True if a token-info map is expired or will expire within buffer-seconds (default 30)."
+  ([token-info]
+   (token-expired? token-info 30))
+  ([token-info buffer-seconds]
+   (when token-info
+     (.isBefore (.minusSeconds (:expires-at token-info) buffer-seconds)
+                (Instant/now)))))
+
 ;; ---------------------------------------------------------------------------
 ;; Interceptors
 ;; ---------------------------------------------------------------------------
@@ -35,6 +50,24 @@
             (assoc-in ctx
                       [:request :headers "Authorization"]
                       (str "Bearer " token)))})
+
+(defn- create-auto-refresh-interceptor
+  "Martian interceptor that auto-refreshes the bearer token before each request
+  when it is expired or about to expire (within buffer-seconds).
+  token-state is an atom holding {:token-info ... :username ... :password ... :url ...}."
+  [token-state]
+  {:name ::auto-refresh-token
+   :enter (fn [ctx]
+            (let [{:keys [token-info username password url]} @token-state]
+              (if (token-expired? token-info)
+                (if-let [new-token-info (get-token username password {:url url})]
+                  (do (swap! token-state assoc :token-info new-token-info)
+                      (assoc-in ctx [:request :headers "Authorization"]
+                                (str "Bearer " (:token new-token-info))))
+                  (do (log/error "MIDAS token refresh failed")
+                      ctx))
+                (assoc-in ctx [:request :headers "Authorization"]
+                          (str "Bearer " (:token token-info))))))})
 
 (defn- turn-off-exception-throwing
   "Martian interceptor that prevents Hato from throwing on non-2xx responses."
@@ -89,15 +122,6 @@
        (do (log/warn "MIDAS token request failed" {:status (:status resp)})
            nil)))))
 
-(defn token-expired?
-  "True if a token-info map is expired or will expire within buffer-seconds (default 30)."
-  ([token-info]
-   (token-expired? token-info 30))
-  ([token-info buffer-seconds]
-   (when token-info
-     (.isBefore (.minusSeconds (:expires-at token-info) buffer-seconds)
-                (Instant/now)))))
-
 ;; ---------------------------------------------------------------------------
 ;; Client creation
 ;; ---------------------------------------------------------------------------
@@ -128,6 +152,48 @@
                           martian-hato/default-interceptors)})
          (assoc :api-root url)
          (with-meta {:midas/token-info (when (map? token) token)})))))
+
+(defn create-auto-client
+  "Create a MIDAS client that automatically refreshes its bearer token.
+
+  Acquires an initial token using the provided credentials and transparently
+  refreshes it before any request where the token is expired or about to
+  expire (within 30 seconds).
+
+  Options:
+    :url       - API base URL (default: production)
+    :spec-path - path to OpenAPI YAML on classpath (default: bundled spec)"
+  ([username password]
+   (create-auto-client username password {}))
+  ([username password {:keys [url spec-path]
+                       :or   {url       api-url
+                              spec-path default-spec-path}}]
+   (let [token-info  (get-token username password {:url url})
+         _           (when-not token-info
+                       (throw (ex-info "Failed to acquire initial MIDAS token" {})))
+         token-state (atom {:token-info token-info
+                            :username username
+                            :password password
+                            :url url})
+         http-client (build-shared-http-client {})]
+     (log/info "Creating auto-refresh MIDAS client" {:url url})
+     (-> (martian-hato/bootstrap-openapi
+          spec-path
+          {:server-url url
+           :interceptors (concat
+                          [(create-auto-refresh-interceptor token-state)
+                           (turn-off-exception-throwing)
+                           (inject-http-client http-client)]
+                          martian-hato/default-interceptors)})
+         (assoc :api-root url)
+         (with-meta {:midas/token-state token-state})))))
+
+(defn token-info
+  "Get the current token-info from a client (works with both client types)."
+  [client]
+  (let [m (meta client)]
+    (or (:midas/token-info m)
+        (:token-info @(:midas/token-state m)))))
 
 ;; ---------------------------------------------------------------------------
 ;; Raw API operations — return {:status :body :headers}
@@ -187,6 +253,37 @@
   [client rin startdate enddate]
   (martian/response-for client :get-historical-data
                         {:id rin :startdate startdate :enddate enddate}))
+
+;; ---------------------------------------------------------------------------
+;; Registration (no auth, POST, base64-encoded fields)
+;; ---------------------------------------------------------------------------
+
+(defn- base64-encode [^String s]
+  (.encodeToString (Base64/getEncoder) (.getBytes s "UTF-8")))
+
+(defn register
+  "Register a new MIDAS API user account.
+
+  All string fields are automatically base64-encoded as required by the API.
+  Returns the raw HTTP response. organization is optional.
+
+  Options:
+    :url - API base URL (default: production)"
+  ([{:keys [fullname username password email organization]}]
+   (register {:fullname fullname :username username :password password
+              :email email :organization organization} {}))
+  ([{:keys [fullname username password email organization]}
+    {:keys [url] :or {url api-url}}]
+   (let [body (cond-> {:fullname     (base64-encode fullname)
+                       :username     (base64-encode username)
+                       :password     (base64-encode password)
+                       :emailaddress (base64-encode email)}
+                organization (assoc :organization (base64-encode organization)))]
+     (hc/request {:method :post
+                  :url (str url "/Registration")
+                  :content-type :json
+                  :form-params body
+                  :throw-exceptions? false}))))
 
 ;; ---------------------------------------------------------------------------
 ;; Convenience

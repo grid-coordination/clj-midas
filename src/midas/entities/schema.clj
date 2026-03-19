@@ -23,6 +23,17 @@
    :midas.rate-type/ghg
    :midas.rate-type/flex-alert])
 
+(def UnitType
+  [:enum
+   :midas.unit/dollar-per-kwh
+   :midas.unit/dollar-per-kw
+   :midas.unit/export-dollar-per-kwh
+   :midas.unit/backup-dollar-per-kwh
+   :midas.unit/kg-co2-per-kwh
+   :midas.unit/dollar-per-kvarh
+   :midas.unit/event
+   :midas.unit/level])
+
 (def ValueData
   [:map
    [:midas.value/name :string]
@@ -33,7 +44,7 @@
    [:midas.value/time-start [:maybe [:fn #(instance? LocalTime %)]]]
    [:midas.value/time-end [:maybe [:fn #(instance? LocalTime %)]]]
    [:midas.value/price [:maybe [:fn #(instance? BigDecimal %)]]]
-   [:midas.value/unit :string]])
+   [:midas.value/unit [:or UnitType :string]]])
 
 (def RateInfo
   [:map
@@ -53,7 +64,7 @@
 (def RinListEntry
   [:map
    [:midas.rin/id :string]
-   [:midas.rin/signal-type SignalType]
+   [:midas.rin/signal-type [:maybe SignalType]]
    [:midas.rin/description :string]
    [:midas.rin/last-updated {:optional true} [:maybe inst?]]])
 
