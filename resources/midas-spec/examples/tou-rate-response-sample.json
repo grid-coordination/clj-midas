@@ -1,0 +1,59 @@
+{
+  "RateID": "USCA-TSTS-TTOU-TEST",
+  "SystemTime_UTC": "2026-03-19T10:03:46.379Z",
+  "RateName": "CEC TEST24HTOU",
+  "RateType": "Time of use",
+  "Sector": "All sectors",
+  "EndUse": "All",
+  "API_Url": "None",
+  "RatePlan_Url": "https://energy.ca.gov",
+  "AltRateName1": "TOU Base test rate",
+  "AltRateName2": "TOU Base test rate",
+  "SignupCloseDate": "2024-12-31T00:00:00.000Z",
+  "ValueInformation": [
+    {
+      "ValueName": "winter off peak",
+      "DateStart": "2023-05-01",
+      "DateEnd": "2023-05-01",
+      "DayStart": "Monday",
+      "DayEnd": "Monday",
+      "TimeStart": "07:00:00",
+      "TimeEnd": "07:59:59",
+      "value": 0.1006,
+      "Unit": "$/kWh"
+    },
+    {
+      "ValueName": "winter off peak",
+      "DateStart": "2023-05-01",
+      "DateEnd": "2023-05-01",
+      "DayStart": "Monday",
+      "DayEnd": "Monday",
+      "TimeStart": "08:00:00",
+      "TimeEnd": "08:59:59",
+      "value": 0.1006,
+      "Unit": "$/kWh"
+    },
+    {
+      "ValueName": "winter on peak",
+      "DateStart": "2023-05-02",
+      "DateEnd": "2023-05-02",
+      "DayStart": "Tuesday",
+      "DayEnd": "Tuesday",
+      "TimeStart": "01:00:00",
+      "TimeEnd": "01:59:59",
+      "value": 0.1388,
+      "Unit": "$/kWh"
+    },
+    {
+      "ValueName": "winter off peak",
+      "DateStart": "2023-05-03",
+      "DateEnd": "2023-05-03",
+      "DayStart": "Wednesday",
+      "DayEnd": "Wednesday",
+      "TimeStart": "08:00:00",
+      "TimeEnd": "08:59:59",
+      "value": 0.1006,
+      "Unit": "$/kWh"
+    }
+  ]
+}

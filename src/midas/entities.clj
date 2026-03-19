@@ -1,0 +1,227 @@
+(ns midas.entities
+  "MIDAS entity coercion: raw API responses → idiomatic Clojure maps.
+
+  Two-layer data model:
+    Raw layer   — direct JSON→EDN, PascalCase keys, string values
+    Coerced layer — namespaced keywords, native types (java.time, BigDecimal)
+
+  All coerced entities carry the original raw data as :midas/raw metadata."
+  (:require [clojure.string :as str])
+  (:import [java.time LocalDate LocalDateTime LocalTime Instant]
+           [java.time.format DateTimeParseException]
+           [java.math BigDecimal]))
+
+;; ---------------------------------------------------------------------------
+;; Time parsing helpers
+;; ---------------------------------------------------------------------------
+
+(defn- parse-date
+  "Parse an ISO date string (YYYY-MM-DD) to a LocalDate, or nil."
+  [s]
+  (when (and s (string? s) (not (str/blank? s)))
+    (LocalDate/parse s)))
+
+(defn- parse-datetime
+  "Parse an ISO datetime string to an Instant.
+  Handles both proper ISO 8601 (with Z/offset) and MIDAS's no-timezone
+  format (e.g. \"2023-12-25T00:00:00\") by treating it as UTC."
+  [s]
+  (when (and s (string? s) (not (str/blank? s)))
+    (try
+      (Instant/parse s)
+      (catch DateTimeParseException _
+        ;; MIDAS returns datetimes without timezone — treat as UTC
+        (-> (LocalDateTime/parse s)
+            (.atZone (java.time.ZoneId/of "UTC"))
+            (.toInstant))))))
+
+(defn- parse-time
+  "Parse a time string (HH:MM:SS or HH:MM) to a LocalTime, or nil."
+  [s]
+  (when (and s (string? s) (not (str/blank? s)))
+    (LocalTime/parse s)))
+
+(defn- parse-bigdec
+  "Coerce a number to BigDecimal."
+  [n]
+  (when n (BigDecimal/valueOf (double n))))
+
+;; ---------------------------------------------------------------------------
+;; Signal type coercion
+;; ---------------------------------------------------------------------------
+
+(def signal-type-kw
+  {"Rates"      :midas.signal-type/rates
+   "GHG"        :midas.signal-type/ghg
+   "Flex Alert" :midas.signal-type/flex-alert})
+
+;; ---------------------------------------------------------------------------
+;; Rate type coercion
+;; ---------------------------------------------------------------------------
+
+(def rate-type-kw
+  {"Time of use"              :midas.rate-type/tou
+   "Critical Peak Pricing"    :midas.rate-type/cpp
+   "Real Time Pricing"        :midas.rate-type/rtp
+   "Greenhouse Gas emissions" :midas.rate-type/ghg
+   "Flex Alert"               :midas.rate-type/flex-alert})
+
+;; ---------------------------------------------------------------------------
+;; Day type coercion
+;; ---------------------------------------------------------------------------
+
+(def day-type-kw
+  {"Monday"    :midas.day/monday
+   "Tuesday"   :midas.day/tuesday
+   "Wednesday" :midas.day/wednesday
+   "Thursday"  :midas.day/thursday
+   "Friday"    :midas.day/friday
+   "Saturday"  :midas.day/saturday
+   "Sunday"    :midas.day/sunday
+   "Holiday"   :midas.day/holiday})
+
+;; ---------------------------------------------------------------------------
+;; Entity coercion functions
+;; ---------------------------------------------------------------------------
+
+(defn ->value-data
+  "Coerce a raw ValueData interval to an idiomatic Clojure map.
+
+  Raw shape:
+    {:ValueName \"winter off peak\" :DateStart \"2023-05-01\" ...}
+
+  Coerced shape:
+    {:midas.value/name \"winter off peak\"
+     :midas.value/date-start #local-date ...
+     :midas.value/price 0.1006M
+     ...}"
+  [raw]
+  (-> {:midas.value/name       (:ValueName raw)
+       :midas.value/date-start (parse-date (:DateStart raw))
+       :midas.value/date-end   (parse-date (:DateEnd raw))
+       :midas.value/day-start  (get day-type-kw (:DayStart raw))
+       :midas.value/day-end    (get day-type-kw (:DayEnd raw))
+       :midas.value/time-start (parse-time (:TimeStart raw))
+       :midas.value/time-end   (parse-time (:TimeEnd raw))
+       :midas.value/price      (parse-bigdec (:value raw))
+       :midas.value/unit       (:Unit raw)}
+      (with-meta {:midas/raw raw})))
+
+(defn ->rate-info
+  "Coerce a raw RateInfo response to an idiomatic Clojure map.
+
+  Raw shape:
+    {:RateID \"USCA-TSTS-TTOU-TEST\" :RateName \"CEC TEST24HTOU\"
+     :ValueInformation [...] ...}
+
+  Coerced shape:
+    {:midas.rate/id \"USCA-TSTS-TTOU-TEST\"
+     :midas.rate/name \"CEC TEST24HTOU\"
+     :midas.rate/values [<ValueData> ...]
+     ...}"
+  [raw]
+  (-> {:midas.rate/id              (:RateID raw)
+       :midas.rate/system-time     (parse-datetime (:SystemTime_UTC raw))
+       :midas.rate/name            (:RateName raw)
+       :midas.rate/type            (get rate-type-kw (:RateType raw) (:RateType raw))
+       :midas.rate/sector          (:Sector raw)
+       :midas.rate/end-use         (:EndUse raw)
+       :midas.rate/api-url         (let [u (:API_Url raw)]
+                                     (when (and u (not= u "None")) u))
+       :midas.rate/rate-plan-url   (:RatePlan_Url raw)
+       :midas.rate/alt-name-1      (:AltRateName1 raw)
+       :midas.rate/alt-name-2      (:AltRateName2 raw)
+       :midas.rate/signup-close    (parse-datetime (:SignupCloseDate raw))
+       :midas.rate/values          (when-let [vi (:ValueInformation raw)]
+                                     (mapv ->value-data vi))}
+      (with-meta {:midas/raw raw})))
+
+(defn ->rin-list-entry
+  "Coerce a raw RIN list entry.
+
+  Raw shape:
+    {:RateID \"USCA-TSTS-TTOU-TEST\" :SignalType \"Rates\"
+     :Description \"...\" :LastUpdated \"2023-06-07T15:57:48.023\"}
+
+  Coerced shape:
+    {:midas.rin/id \"USCA-TSTS-TTOU-TEST\"
+     :midas.rin/signal-type :midas.signal-type/rates
+     :midas.rin/description \"...\"
+     :midas.rin/last-updated #inst ...}"
+  [raw]
+  (-> {:midas.rin/id           (:RateID raw)
+       :midas.rin/signal-type  (get signal-type-kw (:SignalType raw))
+       :midas.rin/description  (:Description raw)
+       :midas.rin/last-updated (parse-datetime (:LastUpdated raw))}
+      (with-meta {:midas/raw raw})))
+
+(defn ->holiday
+  "Coerce a raw HolidayEntry.
+
+  Raw shape:
+    {:EnergyCode \"PG\" :EnergyDescription \"Pacific Gas and Electric\"
+     :DateOfHoliday \"2023-12-25T00:00:00\" :HolidayDescription \"Christmas 2023\"}
+
+  Coerced shape:
+    {:midas.holiday/energy-code \"PG\"
+     :midas.holiday/energy-name \"Pacific Gas and Electric\"
+     :midas.holiday/date #local-date 2023-12-25
+     :midas.holiday/description \"Christmas 2023\"}"
+  [raw]
+  (let [date-str (:DateOfHoliday raw)
+        ;; Extract just the date portion from the datetime string
+        local-date (when date-str
+                     (parse-date (subs date-str 0 (min 10 (count date-str)))))]
+    (-> {:midas.holiday/energy-code (:EnergyCode raw)
+         :midas.holiday/energy-name (:EnergyDescription raw)
+         :midas.holiday/date        local-date
+         :midas.holiday/description (:HolidayDescription raw)}
+        (with-meta {:midas/raw raw}))))
+
+(defn ->lookup-entry
+  "Coerce a raw LookupEntry.
+
+  Raw shape:
+    {:UploadCode \"PG\" :Description \"Pacific Gas and Electric\"}
+
+  Coerced shape:
+    {:midas.lookup/code \"PG\"
+     :midas.lookup/description \"Pacific Gas and Electric\"}"
+  [raw]
+  (-> {:midas.lookup/code        (:UploadCode raw)
+       :midas.lookup/description (:Description raw)}
+      (with-meta {:midas/raw raw})))
+
+;; ---------------------------------------------------------------------------
+;; Coerced API helpers — fetch + coerce in one step
+;; ---------------------------------------------------------------------------
+
+(defn rin-list
+  "Extract and coerce RIN list entries from a get-rin-list response."
+  [response]
+  (mapv ->rin-list-entry (:body response)))
+
+(defn rate-info
+  "Extract and coerce rate info from a get-rate-values response."
+  [response]
+  (->rate-info (:body response)))
+
+(defn holidays
+  "Extract and coerce holidays from a get-holidays response."
+  [response]
+  (mapv ->holiday (:body response)))
+
+(defn historical-list
+  "Extract and coerce historical RIN list from a get-historical-list response."
+  [response]
+  (mapv ->rin-list-entry (:body response)))
+
+(defn historical-data
+  "Extract and coerce historical rate data from a get-historical-data response."
+  [response]
+  (->rate-info (:body response)))
+
+(defn lookup-table
+  "Extract and coerce lookup table entries from a get-lookup-table response."
+  [response]
+  (mapv ->lookup-entry (:body response)))

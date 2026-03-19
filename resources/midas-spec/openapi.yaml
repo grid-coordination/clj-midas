@@ -1,0 +1,131 @@
+openapi: 3.1.0
+info:
+  title: MIDAS API
+  version: 0.1.0
+  description: |
+    Combined OpenAPI specification for the California Energy Commission's
+    MIDAS API (bearer-authenticated endpoints).
+
+    Token acquisition uses HTTP Basic auth and is handled separately
+    by the client library.
+
+servers:
+  - url: https://midasapi.energy.ca.gov/api
+    description: MIDAS Production
+
+security:
+  - bearerAuth: []
+
+paths:
+  /ValueData:
+    get:
+      summary: Query rate data, RIN lists, lookup tables, or the upload schema
+      operationId: getValueData
+      parameters:
+        - name: SignalType
+          in: query
+          required: false
+          schema:
+            type: integer
+            enum: [0, 1, 2, 3]
+        - name: ID
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: QueryType
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [alldata, realtime]
+        - name: LookupTable
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [Country, Daytype, Distribution, Enduse, Energy, Location, Ratetype, Sector, State, Unit]
+      responses:
+        '200':
+          description: Successful response (shape depends on parameters).
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /Holiday:
+    get:
+      summary: Retrieve all utility holidays
+      operationId: getHolidays
+      parameters: []
+      responses:
+        '200':
+          description: Array of holiday entries.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+
+  /HistoricalList:
+    get:
+      summary: List RINs with historical data for a given provider
+      operationId: getHistoricalList
+      parameters:
+        - name: DistributionCode
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: EnergyCode
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Array of RIN list entries.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+
+  /HistoricalData:
+    get:
+      summary: Retrieve archived rate data for a RIN within a date range
+      operationId: getHistoricalData
+      parameters:
+        - name: id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: startdate
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: enddate
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Rate information with historical values.
+          content:
+            application/json:
+              schema:
+                type: object
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: 10-minute bearer token from the /Token endpoint.

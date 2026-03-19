@@ -1,0 +1,70 @@
+(ns midas.entities.schema
+  "Malli schemas for coerced MIDAS entities (the public contract)."
+  (:import [java.time LocalDate LocalTime Instant]
+           [java.math BigDecimal]))
+
+(def DayType
+  [:enum
+   :midas.day/monday :midas.day/tuesday :midas.day/wednesday
+   :midas.day/thursday :midas.day/friday :midas.day/saturday
+   :midas.day/sunday :midas.day/holiday])
+
+(def SignalType
+  [:enum
+   :midas.signal-type/rates
+   :midas.signal-type/ghg
+   :midas.signal-type/flex-alert])
+
+(def RateType
+  [:enum
+   :midas.rate-type/tou
+   :midas.rate-type/cpp
+   :midas.rate-type/rtp
+   :midas.rate-type/ghg
+   :midas.rate-type/flex-alert])
+
+(def ValueData
+  [:map
+   [:midas.value/name :string]
+   [:midas.value/date-start [:maybe [:fn #(instance? LocalDate %)]]]
+   [:midas.value/date-end [:maybe [:fn #(instance? LocalDate %)]]]
+   [:midas.value/day-start {:optional true} [:maybe DayType]]
+   [:midas.value/day-end {:optional true} [:maybe DayType]]
+   [:midas.value/time-start [:maybe [:fn #(instance? LocalTime %)]]]
+   [:midas.value/time-end [:maybe [:fn #(instance? LocalTime %)]]]
+   [:midas.value/price [:maybe [:fn #(instance? BigDecimal %)]]]
+   [:midas.value/unit :string]])
+
+(def RateInfo
+  [:map
+   [:midas.rate/id :string]
+   [:midas.rate/system-time {:optional true} [:maybe inst?]]
+   [:midas.rate/name :string]
+   [:midas.rate/type {:optional true} [:maybe [:or RateType :string]]]
+   [:midas.rate/sector {:optional true} [:maybe :string]]
+   [:midas.rate/end-use {:optional true} [:maybe :string]]
+   [:midas.rate/api-url {:optional true} [:maybe :string]]
+   [:midas.rate/rate-plan-url {:optional true} [:maybe :string]]
+   [:midas.rate/alt-name-1 {:optional true} [:maybe :string]]
+   [:midas.rate/alt-name-2 {:optional true} [:maybe :string]]
+   [:midas.rate/signup-close {:optional true} [:maybe inst?]]
+   [:midas.rate/values {:optional true} [:maybe [:vector ValueData]]]])
+
+(def RinListEntry
+  [:map
+   [:midas.rin/id :string]
+   [:midas.rin/signal-type SignalType]
+   [:midas.rin/description :string]
+   [:midas.rin/last-updated {:optional true} [:maybe inst?]]])
+
+(def Holiday
+  [:map
+   [:midas.holiday/energy-code :string]
+   [:midas.holiday/energy-name :string]
+   [:midas.holiday/date [:maybe [:fn #(instance? LocalDate %)]]]
+   [:midas.holiday/description :string]])
+
+(def LookupEntry
+  [:map
+   [:midas.lookup/code :string]
+   [:midas.lookup/description :string]])

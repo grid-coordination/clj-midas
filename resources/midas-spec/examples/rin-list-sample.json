@@ -1,0 +1,20 @@
+[
+  {
+    "RateID": "USCA-BNBN-EVT2-0000",
+    "SignalType": "Rates",
+    "Description": "Rate Data for Distributor: Banning, Energy Company: Banning",
+    "LastUpdated": "2021-07-14T14:31:55.653"
+  },
+  {
+    "RateID": "USCA-LALA-TTOU-0000",
+    "SignalType": "Rates",
+    "Description": "Rate Data for Distributor: LADWP, Energy Company: LADWP",
+    "LastUpdated": "2023-06-07T15:57:48.023"
+  },
+  {
+    "RateID": "USCA-HPHP-TEST-0000",
+    "SignalType": "Rates",
+    "Description": "Rate Data for Distributor: HP-Flex Research, Energy Company: HP-Flex Research",
+    "LastUpdated": "2022-05-26T21:17:52.103"
+  }
+]

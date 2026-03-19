@@ -1,0 +1,26 @@
+{
+  "RateID": "USCA-FLEX-FXRT-0000",
+  "SystemTime_UTC": "2026-03-19T10:11:11.2455221Z",
+  "RateName": "Realtime Flex Alert Status",
+  "RateType": null,
+  "Sector": null,
+  "API_Url": "https://wwwmobile.caiso.com/TodaysOutlookApi/api/EmergencyNotices/v2/ActiveFlexAlertEvents",
+  "RatePlan_Url": null,
+  "EndUse": null,
+  "AltRateName1": null,
+  "AltRateName2": null,
+  "SignupCloseDate": null,
+  "ValueInformation": [
+    {
+      "ValueName": "No Active Flex Alert",
+      "DateStart": "2026-03-19",
+      "DateEnd": "2026-03-19",
+      "DayStart": "Thursday",
+      "DayEnd": "Thursday",
+      "TimeStart": "03:11",
+      "TimeEnd": "03:11",
+      "value": 0.0,
+      "Unit": "Event"
+    }
+  ]
+}

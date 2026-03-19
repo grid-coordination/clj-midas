@@ -1,0 +1,20 @@
+[
+  {
+    "EnergyCode": "SD",
+    "EnergyDescription": "San Diego Gas and Electric",
+    "DateOfHoliday": "2023-02-20T00:00:00",
+    "HolidayDescription": "President's Day"
+  },
+  {
+    "EnergyCode": "SD",
+    "EnergyDescription": "San Diego Gas and Electric",
+    "DateOfHoliday": "2023-01-02T00:00:00",
+    "HolidayDescription": "New Year's Day"
+  },
+  {
+    "EnergyCode": "PG",
+    "EnergyDescription": "Pacific Gas and Electric",
+    "DateOfHoliday": "2023-12-25T00:00:00",
+    "HolidayDescription": "Christmas 2023"
+  }
+]
