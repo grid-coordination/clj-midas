@@ -1,5 +1,7 @@
 # clj-midas
 
+[![Clojars Project](https://img.shields.io/clojars/v/energy.grid-coordination/clj-midas.svg)](https://clojars.org/energy.grid-coordination/clj-midas)
+
 A Clojure client library for the California Energy Commission's [MIDAS API](https://midasapi.energy.ca.gov/), providing access to electricity rate data, GHG emissions signals, Flex Alerts, utility holidays, and reference lookup tables. Built on a [non-official OpenAPI spec](https://github.com/grid-coordination/midas-api-specs#disclaimer) derived from the CEC's public documentation.
 
 ## Features
@@ -16,8 +18,7 @@ A Clojure client library for the California Energy Commission's [MIDAS API](http
 Add to your `deps.edn`:
 
 ```clojure
-;; TODO: publish coordinates once deployed
-{:deps {energy.grid-coordination/clj-midas {:mvn/version "0.1.0"}}}
+{:deps {energy.grid-coordination/clj-midas {:mvn/version "0.1.0-SNAPSHOT"}}}
 ```
 
 ## Quick Start
