@@ -28,7 +28,10 @@
          :src-dirs ["src"]
          :description "Clojure client library for the MIDAS API"
          :url "https://grid-coordination.energy"
-         :licenses [{:name "MIT" :url "https://opensource.org/licenses/MIT"}]
+         :pom-data [[:licenses
+                     [:license
+                      [:name "MIT"]
+                      [:url "https://opensource.org/licenses/MIT"]]]]
          :scm {:tag (str "v" version)
                :url "https://github.com/grid-coordination/clj-midas"}))
 
