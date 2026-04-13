@@ -352,7 +352,7 @@ Malli schemas are published in dedicated namespaces.
 
 ```bash
 clojure -M:nrepl
-# nREPL running on port 7889
+# nREPL port written to .nrepl-port
 ```
 
 Requires `MIDAS_USERNAME` and `MIDAS_PASSWORD` environment variables.
