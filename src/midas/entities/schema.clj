@@ -1,6 +1,6 @@
 (ns midas.entities.schema
   "Malli schemas for coerced MIDAS entities (the public contract)."
-  (:import [java.time LocalDate LocalTime Instant]
+  (:import [java.time LocalDate LocalTime]
            [java.math BigDecimal]))
 
 (def DayType

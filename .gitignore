@@ -4,4 +4,4 @@ target/
 *.class
 *.jar
 .lsp/
-.clj-kondo/
+.clj-kondo/.cache/
