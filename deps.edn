@@ -33,6 +33,7 @@
                    :ns-default build}
 
            :nrepl {:extra-paths ["test" "dev"]
-                   :extra-deps {nrepl/nrepl {:mvn/version "1.6.0"}}
+                   :extra-deps {nrepl/nrepl {:mvn/version "1.6.0"}
+                                com.dcj/clj-doc-browse {:mvn/version "0.1.0"}}
                    :jvm-opts ["-Djdk.attach.allowAttachSelf"]
                    :main-opts ["-m" "nrepl.cmdline"]}}}
