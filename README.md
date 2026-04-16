@@ -19,7 +19,7 @@ A Clojure client library for the California Energy Commission's [MIDAS API](http
 Add to your `deps.edn`:
 
 ```clojure
-{:deps {energy.grid-coordination/clj-midas {:mvn/version "0.2.0"}}}
+{:deps {energy.grid-coordination/clj-midas {:mvn/version "0.3.0"}}}
 ```
 
 ## Quick Start
