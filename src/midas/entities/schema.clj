@@ -1,6 +1,6 @@
 (ns midas.entities.schema
   "Malli schemas for coerced MIDAS entities (the public contract)."
-  (:import [java.time LocalDate LocalTime]
+  (:import [java.time LocalDate LocalDateTime LocalTime]
            [java.math BigDecimal]))
 
 (def DayType
@@ -44,7 +44,9 @@
    [:midas.value/time-start [:maybe [:fn #(instance? LocalTime %)]]]
    [:midas.value/time-end [:maybe [:fn #(instance? LocalTime %)]]]
    [:midas.value/price [:maybe [:fn #(instance? BigDecimal %)]]]
-   [:midas.value/unit [:or UnitType :string]]])
+   [:midas.value/unit [:or UnitType :string]]
+   [:tick/beginning {:optional true} [:fn #(instance? LocalDateTime %)]]
+   [:tick/end {:optional true} [:fn #(instance? LocalDateTime %)]]])
 
 (def RateInfo
   [:map

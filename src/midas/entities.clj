@@ -108,18 +108,34 @@
     {:midas.value/name \"winter off peak\"
      :midas.value/date-start #local-date ...
      :midas.value/price 0.1006M
-     ...}"
+     :tick/beginning #local-date-time ...
+     :tick/end #local-date-time ...
+     ...}
+
+  When both date and time are present for a boundary, the map also carries
+  :tick/beginning and :tick/end keys (LocalDateTime), making it directly
+  usable as a tick interval."
   [raw]
-  (-> {:midas.value/name       (:ValueName raw)
-       :midas.value/date-start (parse-date (:DateStart raw))
-       :midas.value/date-end   (parse-date (:DateEnd raw))
-       :midas.value/day-start  (get day-type-kw (:DayStart raw))
-       :midas.value/day-end    (get day-type-kw (:DayEnd raw))
-       :midas.value/time-start (parse-time (:TimeStart raw))
-       :midas.value/time-end   (parse-time (:TimeEnd raw))
-       :midas.value/price      (parse-bigdec (:value raw))
-       :midas.value/unit       (get unit-type-kw (:Unit raw) (:Unit raw))}
-      (with-meta {:midas/raw raw})))
+  (let [date-start (parse-date (:DateStart raw))
+        date-end   (parse-date (:DateEnd raw))
+        time-start (parse-time (:TimeStart raw))
+        time-end   (parse-time (:TimeEnd raw))
+        m {:midas.value/name       (:ValueName raw)
+           :midas.value/date-start date-start
+           :midas.value/date-end   date-end
+           :midas.value/day-start  (get day-type-kw (:DayStart raw))
+           :midas.value/day-end    (get day-type-kw (:DayEnd raw))
+           :midas.value/time-start time-start
+           :midas.value/time-end   time-end
+           :midas.value/price      (parse-bigdec (:value raw))
+           :midas.value/unit       (get unit-type-kw (:Unit raw) (:Unit raw))}]
+    (-> (cond-> m
+          (and date-start time-start)
+          (assoc :tick/beginning (LocalDateTime/of date-start time-start))
+
+          (and date-end time-end)
+          (assoc :tick/end (LocalDateTime/of date-end time-end)))
+        (with-meta {:midas/raw raw}))))
 
 (defn ->rate-info
   "Coerce a raw RateInfo response to an idiomatic Clojure map.

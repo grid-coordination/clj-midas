@@ -8,6 +8,9 @@
         com.github.oliyh/martian-hato  {:mvn/version "0.2.2"}
         hato/hato                      {:mvn/version "1.0.0"}
 
+        ;; Time intervals
+        tick/tick                      {:mvn/version "1.0"}
+
         ;; Schema validation
         metosin/malli                  {:mvn/version "0.20.1"}
 

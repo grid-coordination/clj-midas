@@ -4,7 +4,7 @@
             [malli.core :as m]
             [midas.entities.schema :as schema]
             [midas.entities.schema.raw :as raw-schema])
-  (:import [java.time LocalDate LocalTime]
+  (:import [java.time LocalDate LocalDateTime LocalTime]
            [java.math BigDecimal]))
 
 (def sample-value-data
@@ -78,6 +78,9 @@
       (is (= :midas.unit/dollar-per-kwh (:midas.value/unit v))))
     (testing "price is BigDecimal"
       (is (instance? BigDecimal (:midas.value/price v))))
+    (testing "tick interval keys"
+      (is (= (LocalDateTime/of 2023 5 1 7 0 0) (:tick/beginning v)))
+      (is (= (LocalDateTime/of 2023 5 1 7 59 59) (:tick/end v))))
     (testing "raw metadata preserved"
       (is (= sample-value-data (-> v meta :midas/raw))))
     (testing "validates against coerced schema"
@@ -155,6 +158,13 @@
     (let [v (entities/->value-data (assoc sample-value-data :DayStart nil :DayEnd nil))]
       (is (nil? (:midas.value/day-start v)))
       (is (nil? (:midas.value/day-end v)))))
+  (testing "tick keys omitted when date or time is nil"
+    (let [v (entities/->value-data (assoc sample-value-data :DateStart nil))]
+      (is (nil? (:tick/beginning v)))
+      (is (some? (:tick/end v))))
+    (let [v (entities/->value-data (assoc sample-value-data :TimeStart nil))]
+      (is (nil? (:tick/beginning v)))
+      (is (some? (:tick/end v)))))
   (testing "nil RateType"
     (let [r (entities/->rate-info (assoc sample-rate-info :RateType nil))]
       (is (nil? (:midas.rate/type r)))))
