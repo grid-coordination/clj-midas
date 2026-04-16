@@ -258,6 +258,73 @@
   (mapv ->lookup-entry (:body response)))
 
 ;; ---------------------------------------------------------------------------
+;; RIN parsing
+;; ---------------------------------------------------------------------------
+
+(def ^:private rin-pattern
+  "Regex matching the RIN format: CCSS-DDEE-RRRR-LLLL(LLLLLL).
+  Four segments encoding six fields: country, state, distribution, energy,
+  rate, and location."
+  #"^([A-Z]{2})([A-Z]{2})-([A-Z0-9]{2})([A-Z0-9]{2})-([A-Z0-9]{4})-([A-Z0-9]{1,10})$")
+
+(defn parse-rin
+  "Parse a RIN string into its component fields.
+
+  Example:
+    (parse-rin \"USCA-PGPG-TOU4-0000\")
+    ;=> {:midas.rin/country \"US\"
+    ;    :midas.rin/state \"CA\"
+    ;    :midas.rin/distribution \"PG\"
+    ;    :midas.rin/energy \"PG\"
+    ;    :midas.rin/rate \"TOU4\"
+    ;    :midas.rin/location \"0000\"}
+
+  Returns nil if the string does not match the RIN format."
+  [rin]
+  (when-let [[_ country state distribution energy rate location]
+             (re-matches rin-pattern rin)]
+    {:midas.rin/country      country
+     :midas.rin/state        state
+     :midas.rin/distribution distribution
+     :midas.rin/energy       energy
+     :midas.rin/rate         rate
+     :midas.rin/location     location}))
+
+(defn annotate-rin
+  "Add human-readable labels to a parsed RIN map.
+
+  lookup-tables is a map of lookup table name to a sequence of coerced
+  LookupEntry maps (as returned by `(entities/lookup-table response)`).
+  Recognized keys: \"Distribution\" and \"Energy\".
+
+  Example:
+    (annotate-rin (parse-rin \"USCA-PGPG-TOU4-0000\")
+                  {\"Distribution\" dist-entries
+                   \"Energy\"       energy-entries})
+    ;=> {:midas.rin/country \"US\"
+    ;    :midas.rin/state \"CA\"
+    ;    :midas.rin/distribution \"PG\"
+    ;    :midas.rin/distribution-name \"Pacific Gas and Electric\"
+    ;    :midas.rin/energy \"PG\"
+    ;    :midas.rin/energy-name \"Pacific Gas and Electric\"
+    ;    :midas.rin/rate \"TOU4\"
+    ;    :midas.rin/location \"0000\"}"
+  [parsed-rin lookup-tables]
+  (let [index (fn [entries]
+                (into {} (map (juxt :midas.lookup/code :midas.lookup/description))
+                      entries))
+        dist-idx   (some-> (get lookup-tables "Distribution") index)
+        energy-idx (some-> (get lookup-tables "Energy") index)]
+    (cond-> parsed-rin
+      (and dist-idx (get dist-idx (:midas.rin/distribution parsed-rin)))
+      (assoc :midas.rin/distribution-name
+             (get dist-idx (:midas.rin/distribution parsed-rin)))
+
+      (and energy-idx (get energy-idx (:midas.rin/energy parsed-rin)))
+      (assoc :midas.rin/energy-name
+             (get energy-idx (:midas.rin/energy parsed-rin))))))
+
+;; ---------------------------------------------------------------------------
 ;; Signal type helpers
 ;; ---------------------------------------------------------------------------
 

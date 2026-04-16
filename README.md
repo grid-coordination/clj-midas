@@ -11,6 +11,7 @@ A Clojure client library for the California Energy Commission's [MIDAS API](http
 - **Auto-refreshing authentication**: 10-minute bearer tokens are transparently refreshed before expiry
 - **Metadata preservation**: every coerced entity carries the original API data as `:midas/raw` metadata
 - **Malli schemas** for both raw and coerced data layers
+- **RIN parsing**: decompose a [Rate Identification Number](https://github.com/grid-coordination/midas-api-specs/blob/main/doc/rin-structure.md) into its component fields, with optional annotation from lookup tables
 - **Signal type helpers**: `flex-alert?`, `flex-alert-active?`, `ghg?` for quick classification
 
 ## Installation
@@ -150,6 +151,19 @@ Idiomatic Clojure — namespaced keywords, native types.
 | `:midas.lookup/code` | `String` | Upload code |
 | `:midas.lookup/description` | `String` | Human-readable description |
 
+#### ParsedRin
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `:midas.rin/country` | `String` | Country code (e.g. `"US"`) |
+| `:midas.rin/state` | `String` | State code (e.g. `"CA"`) |
+| `:midas.rin/distribution` | `String` | Distribution utility code (e.g. `"PG"`) |
+| `:midas.rin/energy` | `String` | Energy provider code (e.g. `"PG"`) |
+| `:midas.rin/rate` | `String` | Rate schedule identifier (e.g. `"TOU4"`) |
+| `:midas.rin/location` | `String` | Location identifier (e.g. `"0000"`) |
+| `:midas.rin/distribution-name` | `String` or absent | Human-readable distribution utility name (added by `annotate-rin`) |
+| `:midas.rin/energy-name` | `String` or absent | Human-readable energy provider name (added by `annotate-rin`) |
+
 ### Type Coercion Summary
 
 | Raw (API) | Coerced (Clojure) | Example |
@@ -181,6 +195,43 @@ MIDAS uses a two-step auth flow:
 ;; Auto-refreshing client (recommended)
 (def c (client/create-auto-client "user" "pass"))
 ;; Token refreshes transparently — no manual management needed
+```
+
+## RIN Parsing
+
+Parse a [Rate Identification Number](https://github.com/grid-coordination/midas-api-specs/blob/main/doc/rin-structure.md) into its component fields:
+
+```clojure
+(entities/parse-rin "USCA-PGPG-TOU4-0000")
+;=> {:midas.rin/country "US"
+;    :midas.rin/state "CA"
+;    :midas.rin/distribution "PG"
+;    :midas.rin/energy "PG"
+;    :midas.rin/rate "TOU4"
+;    :midas.rin/location "0000"}
+
+;; Returns nil for invalid RINs
+(entities/parse-rin "not-a-rin")
+;=> nil
+```
+
+Add human-readable labels from MIDAS lookup tables:
+
+```clojure
+;; Fetch lookup tables once
+(def dist-table (entities/lookup-table (client/get-lookup-table c "Distribution")))
+(def energy-table (entities/lookup-table (client/get-lookup-table c "Energy")))
+(def lookups {"Distribution" dist-table, "Energy" energy-table})
+
+(entities/annotate-rin (entities/parse-rin "USCA-SDEA-TTOU-0000") lookups)
+;=> {:midas.rin/country "US"
+;    :midas.rin/state "CA"
+;    :midas.rin/distribution "SD"
+;    :midas.rin/distribution-name "San Diego Gas and Electric"
+;    :midas.rin/energy "EA"
+;    :midas.rin/energy-name "Clean Energy Alliance"
+;    :midas.rin/rate "TTOU"
+;    :midas.rin/location "0000"}
 ```
 
 ## Signal Type Helpers
@@ -221,8 +272,8 @@ Malli schemas are published in dedicated namespaces.
 (m/validate schema/RateInfo rate)    ;=> true
 (m/validate schema/ValueData value)  ;=> true
 
-;; Available: RateInfo, ValueData, RinListEntry, Holiday, LookupEntry,
-;;            RateType, SignalType, DayType, UnitType
+;; Available: RateInfo, ValueData, RinListEntry, ParsedRin, Holiday,
+;;            LookupEntry, RateType, SignalType, DayType, UnitType
 ```
 
 ### `midas.entities.schema.raw` — Raw API shapes
@@ -274,6 +325,8 @@ Malli schemas are published in dedicated namespaces.
 | `historical-data` | Extract + coerce historical rate data |
 | `lookup-table` | Extract + coerce lookup table entries |
 | `ghg?` | True if rate-info is a GHG signal |
+| `parse-rin` | Parse a RIN string into its component fields |
+| `annotate-rin` | Add human-readable labels from lookup tables to a parsed RIN |
 | `flex-alert?` | True if rate-info is a Flex Alert |
 | `flex-alert-active?` | True if a Flex Alert is currently active |
 

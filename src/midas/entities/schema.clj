@@ -68,6 +68,17 @@
    [:midas.rin/description :string]
    [:midas.rin/last-updated {:optional true} [:maybe inst?]]])
 
+(def ParsedRin
+  [:map
+   [:midas.rin/country [:string {:min 2 :max 2}]]
+   [:midas.rin/state [:string {:min 2 :max 2}]]
+   [:midas.rin/distribution [:string {:min 2 :max 2}]]
+   [:midas.rin/energy [:string {:min 2 :max 2}]]
+   [:midas.rin/rate [:string {:min 4 :max 4}]]
+   [:midas.rin/location [:string {:min 1 :max 10}]]
+   [:midas.rin/distribution-name {:optional true} :string]
+   [:midas.rin/energy-name {:optional true} :string]])
+
 (def Holiday
   [:map
    [:midas.holiday/energy-code :string]

@@ -242,6 +242,83 @@
       (is (entities/flex-alert-active? (entities/->rate-info active))))))
 
 ;; ---------------------------------------------------------------------------
+;; RIN parsing
+;; ---------------------------------------------------------------------------
+
+(deftest parse-rin-basic
+  (testing "standard RIN"
+    (let [parsed (entities/parse-rin "USCA-PGPG-TOU4-0000")]
+      (is (= {:midas.rin/country "US"
+              :midas.rin/state "CA"
+              :midas.rin/distribution "PG"
+              :midas.rin/energy "PG"
+              :midas.rin/rate "TOU4"
+              :midas.rin/location "0000"}
+             parsed))
+      (is (m/validate schema/ParsedRin parsed))))
+  (testing "CCA RIN with different distribution and energy codes"
+    (let [parsed (entities/parse-rin "USCA-SDEA-TTOU-0000")]
+      (is (= "SD" (:midas.rin/distribution parsed)))
+      (is (= "EA" (:midas.rin/energy parsed)))))
+  (testing "test RIN"
+    (let [parsed (entities/parse-rin "USCA-TSTS-TTOU-TEST")]
+      (is (= "TS" (:midas.rin/distribution parsed)))
+      (is (= "TEST" (:midas.rin/location parsed)))))
+  (testing "long location (up to 10 chars)"
+    (let [parsed (entities/parse-rin "USCA-PGPG-TOU4-0000000000")]
+      (is (= "0000000000" (:midas.rin/location parsed)))
+      (is (m/validate schema/ParsedRin parsed))))
+  (testing "GHG RIN"
+    (let [parsed (entities/parse-rin "USCA-SGSG-SGRT-CAISO")]
+      (is (= "SG" (:midas.rin/distribution parsed)))
+      (is (= "SGRT" (:midas.rin/rate parsed)))
+      (is (= "CAISO" (:midas.rin/location parsed))))))
+
+(deftest parse-rin-invalid
+  (testing "nil for invalid inputs"
+    (is (nil? (entities/parse-rin "")))
+    (is (nil? (entities/parse-rin "not-a-rin")))
+    (is (nil? (entities/parse-rin "USCA-PG-TOU4-0000")))
+    (is (nil? (entities/parse-rin "usca-pgpg-tou4-0000")))))
+
+(deftest annotate-rin-test
+  (let [dist-entries [{:midas.lookup/code "PG"
+                       :midas.lookup/description "Pacific Gas and Electric"}
+                      {:midas.lookup/code "SD"
+                       :midas.lookup/description "San Diego Gas and Electric"}]
+        energy-entries [{:midas.lookup/code "PG"
+                         :midas.lookup/description "Pacific Gas and Electric"}
+                        {:midas.lookup/code "EA"
+                         :midas.lookup/description "Clean Energy Alliance"}]
+        lookups {"Distribution" dist-entries
+                 "Energy" energy-entries}]
+    (testing "bundled customer gets matching labels"
+      (let [annotated (entities/annotate-rin
+                       (entities/parse-rin "USCA-PGPG-TOU4-0000")
+                       lookups)]
+        (is (= "Pacific Gas and Electric" (:midas.rin/distribution-name annotated)))
+        (is (= "Pacific Gas and Electric" (:midas.rin/energy-name annotated)))
+        (is (m/validate schema/ParsedRin annotated))))
+    (testing "CCA customer gets different labels"
+      (let [annotated (entities/annotate-rin
+                       (entities/parse-rin "USCA-SDEA-TTOU-0000")
+                       lookups)]
+        (is (= "San Diego Gas and Electric" (:midas.rin/distribution-name annotated)))
+        (is (= "Clean Energy Alliance" (:midas.rin/energy-name annotated)))))
+    (testing "unknown code omits label"
+      (let [annotated (entities/annotate-rin
+                       (entities/parse-rin "USCA-XXXX-TTOU-0000")
+                       lookups)]
+        (is (nil? (:midas.rin/distribution-name annotated)))
+        (is (nil? (:midas.rin/energy-name annotated)))))
+    (testing "nil lookup tables is safe"
+      (let [annotated (entities/annotate-rin
+                       (entities/parse-rin "USCA-PGPG-TOU4-0000")
+                       nil)]
+        (is (nil? (:midas.rin/distribution-name annotated)))
+        (is (= "PG" (:midas.rin/distribution annotated)))))))
+
+;; ---------------------------------------------------------------------------
 ;; Historical list deduplication
 ;; ---------------------------------------------------------------------------
 
